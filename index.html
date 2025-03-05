@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lip Sync Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .animation-container {
+            position: relative;
+            margin: 20px auto;
+            border: 2px solid #61dafb;
+            border-radius: 10px;
+            padding: 20px;
+            overflow: hidden;
+            background: #ffffff;
+            /* We'll set the exact dimensions based on the image's aspect ratio in JavaScript */
+        }
+
+        .doctor-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .mouth-overlay {
+            position: absolute;
+            /* Initial size - will be adjusted with controls */
+            width: 80px;
+            height: 40px;
+            /* Center initially - will be adjusted with controls */
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            /* Use multiply blend mode for better integration */
+            mix-blend-mode: multiply;
+            pointer-events: none;
+            /* Adjust contrast and brightness for better blending */
+            filter: contrast(1.2) brightness(0.9);
+            /* Add a subtle border to help with positioning */
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Add styles for the mouth shape preview */
+        .mouth-preview {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            color: white;
+        }
+
+        .mouth-preview img {
+            width: 60px;
+            height: 30px;
+            object-fit: contain;
+            background: #ffffff;
+            border-radius: 2px;
+            /* Don't use multiply blend mode for preview */
+            mix-blend-mode: normal;
+        }
+
+        .setup-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .setup-controls label {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .setup-controls input[type="range"] {
+            width: 100%;
+        }
+
+        .value-display {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .debug-panel {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-width: 300px;
+            max-height: 200px;
+            overflow: auto;
+        }
+
+        /* Add styles for the playback controls */
+        .playback-controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #playButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #61dafb;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #playButton:hover {
+            background: #4fa8d1;
+        }
+
+        #audioPlayer {
+            flex-grow: 1;
+            height: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lip Sync Demo</h1>
+        
+        <div class="animation-container">
+            <img src="images/doctor.jpg" alt="Doctor" class="doctor-image" id="doctorImage">
+            <img class="mouth-overlay" id="mouthShape" src="images/mouth-shapes/lisa-A.png" alt="Mouth Shape">
+        </div>
+
+        <div class="playback-controls">
+            <button id="playButton">Play</button>
+            <audio id="audioPlayer" controls>
+                <source src="data/input.wav" type="audio/wav">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="setup-controls">
+            <label>
+                Position X
+                <input type="range" id="mouthX" min="0" max="100" value="50" step="0.1">
+                <span id="mouthXValue" class="value-display">50%</span>
+            </label>
+            <label>
+                Position Y
+                <input type="range" id="mouthY" min="0" max="100" value="50" step="0.1">
+                <span id="mouthYValue" class="value-display">50%</span>
+            </label>
+            <label>
+                Width
+                <input type="range" id="mouthWidth" min="20" max="400" value="80" step="1">
+                <span id="mouthWidthValue" class="value-display">80px</span>
+            </label>
+            <label>
+                Height
+                <input type="range" id="mouthHeight" min="10" max="200" value="40" step="1">
+                <span id="mouthHeightValue" class="value-display">40px</span>
+            </label>
+            <label>
+                Rotation
+                <input type="range" id="mouthRotation" min="-180" max="180" value="0" step="1">
+                <span id="mouthRotationValue" class="value-display">0°</span>
+            </label>
+            <label>
+                Opacity
+                <input type="range" id="mouthOpacity" min="0" max="100" value="80" step="1">
+                <span id="mouthOpacityValue" class="value-display">80%</span>
+            </label>
+            <label>
+                Contrast
+                <input type="range" id="mouthContrast" min="0" max="200" value="120" step="1">
+                <span id="mouthContrastValue" class="value-display">120%</span>
+            </label>
+            <label>
+                Brightness
+                <input type="range" id="mouthBrightness" min="0" max="200" value="90" step="1">
+                <span id="mouthBrightnessValue" class="value-display">90%</span>
+            </label>
+        </div>
+
+        <div class="mouth-preview" id="mouthPreview">
+            <div>Current Shape: <span id="currentShape">A</span></div>
+            <img src="images/mouth-shapes/lisa-A.png" alt="Current Mouth Shape">
+        </div>
+
+        <div class="debug-panel" id="debugPanel">
+            Waiting for playback...
+        </div>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const audioPlayer = document.getElementById('audioPlayer');
+        const mouthShape = document.getElementById('mouthShape');
+        const mouthX = document.getElementById('mouthX');
+        const mouthY = document.getElementById('mouthY');
+        const mouthWidth = document.getElementById('mouthWidth');
+        const mouthHeight = document.getElementById('mouthHeight');
+        const mouthRotation = document.getElementById('mouthRotation');
+        const mouthOpacity = document.getElementById('mouthOpacity');
+        const mouthContrast = document.getElementById('mouthContrast');
+        const mouthBrightness = document.getElementById('mouthBrightness');
+        const mouthXValue = document.getElementById('mouthXValue');
+        const mouthYValue = document.getElementById('mouthYValue');
+        const mouthWidthValue = document.getElementById('mouthWidthValue');
+        const mouthHeightValue = document.getElementById('mouthHeightValue');
+        const mouthRotationValue = document.getElementById('mouthRotationValue');
+        const mouthOpacityValue = document.getElementById('mouthOpacityValue');
+        const mouthContrastValue = document.getElementById('mouthContrastValue');
+        const mouthBrightnessValue = document.getElementById('mouthBrightnessValue');
+        const currentShape = document.getElementById('currentShape');
+        const mouthPreview = document.getElementById('mouthPreview');
+        const debugPanel = document.getElementById('debugPanel');
+        const doctorImage = document.getElementById('doctorImage');
+        const playButton = document.getElementById('playButton');
+
+        // Disable play button initially
+        playButton.disabled = true;
+        playButton.textContent = 'Loading Audio...';
+
+        // Check audio loading
+        audioPlayer.addEventListener('loadeddata', () => {
+            debugPanel.textContent = 'Audio loaded successfully';
+            console.log('Audio loaded successfully');
+            playButton.disabled = false;
+            playButton.textContent = 'Play';
+        });
+
+        audioPlayer.addEventListener('error', (e) => {
+            const error = audioPlayer.error;
+            debugPanel.textContent = `Audio error: ${error.message || 'Failed to load audio'}`;
+            console.error('Audio loading error:', error);
+            playButton.textContent = 'Audio Load Error';
+            playButton.disabled = true;
+        });
+
+        // Set container size based on image
+        doctorImage.onload = function() {
+            const container = document.querySelector('.animation-container');
+            container.style.width = this.width + 'px';
+            container.style.height = this.height + 'px';
+            debugPanel.textContent = `Image loaded: ${this.width}x${this.height}`;
+        };
+
+        // Load lip sync data
+        let lipSyncData = null;
+        fetch('data/output.json')
+            .then(response => response.json())
+            .then(data => {
+                lipSyncData = data;
+                console.log('Lip sync data loaded:', data);
+            })
+            .catch(error => {
+                console.error('Error loading lip sync data:', error);
+            });
+
+        // Function to update mouth shape based on current time
+        function updateMouthShape(currentTime) {
+            if (!lipSyncData) return;
+
+            // Find the appropriate mouth shape for the current time
+            const cue = lipSyncData.mouthCues.find(cue => 
+                currentTime >= cue.start && currentTime < cue.end
+            );
+
+            if (cue) {
+                const shape = cue.value;
+                const shapePath = `images/mouth-shapes/lisa-${shape}.png`;
+                
+                // Only update if shape has changed
+                if (mouthShape.src.split('/').pop() !== `lisa-${shape}.png`) {
+                    mouthShape.src = shapePath;
+                    currentShape.textContent = shape;
+                    mouthPreview.querySelector('img').src = shapePath;
+                    
+                    // Debug info
+                    debugPanel.textContent = `Time: ${currentTime.toFixed(2)}s\nShape: ${shape}\nStart: ${cue.start}s\nEnd: ${cue.end}s`;
+                }
+            }
+        }
+
+        // Set up audio playback and lip sync
+        let animationFrameId = null;
+        let updateInterval = null;
+
+        function startLipSync() {
+            // Clear any existing intervals/animations
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (updateInterval) clearInterval(updateInterval);
+
+            // Use both requestAnimationFrame and setInterval for smoother updates
+            function animate() {
+                updateMouthShape(audioPlayer.currentTime);
+                animationFrameId = requestAnimationFrame(animate);
+            }
+            animate();
+
+            // Backup interval for consistent updates
+            updateInterval = setInterval(() => {
+                updateMouthShape(audioPlayer.currentTime);
+            }, 16); // ~60fps
+        }
+
+        function stopLipSync() {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (updateInterval) clearInterval(updateInterval);
+        }
+
+        // Handle play/pause
+        audioPlayer.addEventListener('play', startLipSync);
+        audioPlayer.addEventListener('pause', stopLipSync);
+        audioPlayer.addEventListener('ended', stopLipSync);
+
+        // Play button functionality
+        playButton.addEventListener('click', () => {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+            } else {
+                audioPlayer.pause();
+            }
+        });
+
+        // Update play button text based on audio state
+        audioPlayer.addEventListener('play', () => {
+            playButton.textContent = 'Pause';
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playButton.textContent = 'Play';
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            playButton.textContent = 'Play';
+        });
+
+        // Handle mouth position and appearance controls
+        function updateMouthPosition() {
+            const x = mouthX.value;
+            const y = mouthY.value;
+            const width = mouthWidth.value;
+            const height = mouthHeight.value;
+            const rotation = mouthRotation.value;
+            const opacity = mouthOpacity.value;
+            const contrast = mouthContrast.value;
+            const brightness = mouthBrightness.value;
+
+            mouthShape.style.left = `${x}%`;
+            mouthShape.style.top = `${y}%`;
+            mouthShape.style.width = `${width}px`;
+            mouthShape.style.height = `${height}px`;
+            mouthShape.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+            mouthShape.style.opacity = opacity / 100;
+            mouthShape.style.filter = `contrast(${contrast}%) brightness(${brightness}%)`;
+
+            // Update value displays
+            mouthXValue.textContent = `${x}%`;
+            mouthYValue.textContent = `${y}%`;
+            mouthWidthValue.textContent = `${width}px`;
+            mouthHeightValue.textContent = `${height}px`;
+            mouthRotationValue.textContent = `${rotation}°`;
+            mouthOpacityValue.textContent = `${opacity}%`;
+            mouthContrastValue.textContent = `${contrast}%`;
+            mouthBrightnessValue.textContent = `${brightness}%`;
+        }
+
+        // Add event listeners for all controls
+        [mouthX, mouthY, mouthWidth, mouthHeight, mouthRotation, mouthOpacity, mouthContrast, mouthBrightness].forEach(control => {
+            control.addEventListener('input', updateMouthPosition);
+        });
+
+        // Initial position update
+        updateMouthPosition();
+    </script>
+</body>
+</html> 
